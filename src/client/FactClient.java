@@ -5,47 +5,41 @@ import java.net.*;
 import java.net.http.HttpClient;
 import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
+import java.nio.charset.Charset;
 import java.nio.charset.StandardCharsets;
 import java.time.Duration;
+import java.util.ArrayList;
+import java.util.List;
 
 public class FactClient {
     private final static String BASE_URL = "http://localhost:8080/facts";
     private final String AUTHOR;
 
-    public FactClient (String author) {
+    public FactClient(String author) {
         if (author.isBlank() || author.isEmpty() || author == null) AUTHOR = "Неизвестный автор";
         else AUTHOR = author;
     }
 
-    public String postFact (String content) {
-        if (content.isEmpty() || content == null) return "Факт отсутствует, введите факт";
-        StringBuilder result = new StringBuilder();
+    public String postFact(Fact fact) {
+        if (fact.getContent().isEmpty() || fact.getContent() == null) return "Факт отсутствует, введите факт";
         try {
-            String request = CustomJsonConverter.getJson(content, AUTHOR);
-            URL url = new URI(BASE_URL).toURL();
-            HttpURLConnection connection = (HttpURLConnection) url.openConnection();
-            connection.setRequestMethod("POST");
-            connection.setRequestProperty("Content-Type", "application/json");
-            connection.setConnectTimeout(5000);
-            connection.setReadTimeout(5000);
-            connection.setDoOutput(true);
-            connection.setDoInput(true);
-            DataOutputStream dos = new DataOutputStream(connection.getOutputStream());
-            dos.write(request.getBytes(StandardCharsets.UTF_8));
-            dos.flush();
-            BufferedReader dis = new BufferedReader(new InputStreamReader(connection.getInputStream()));
-            while (dis.ready()) {
-                result.append(dis.readLine());
-            }
-            dos.close();
-            dis.close();
+            URI uri = new URI(BASE_URL);
+            HttpRequest httpRequest = HttpRequest.newBuilder(uri)
+                    .timeout(Duration.ofSeconds(10))
+                    .headers("Content-Type", "application/json")
+                    .POST(HttpRequest.BodyPublishers.ofString(CustomJsonConverter.getJson(fact), StandardCharsets.UTF_8))
+                    .build();
+            HttpClient client = HttpClient.newHttpClient();
+            HttpResponse<String> response = client.send(httpRequest, HttpResponse.BodyHandlers.ofString());
+            if (response.statusCode() != 201) return "Не удалось опубликовать факт";
+            return "Факт опубликован!";
+
         } catch (Exception e) {
-            e.printStackTrace();
+            return e.toString();
         }
-        return result.toString();
     }
 
-    public String getFactById (int factId) {
+    public Fact getFactById(int factId) {
         try {
             URI uri = new URI(BASE_URL + "/id=" + factId);
             HttpRequest httpRequest = HttpRequest.newBuilder(uri)
@@ -55,32 +49,127 @@ public class FactClient {
                     .build();
             HttpClient client = HttpClient.newHttpClient();
             HttpResponse<String> response = client.send(httpRequest, HttpResponse.BodyHandlers.ofString());
-            if (response.statusCode() != 200) return "Факт с таким номером не найден";
-            return response.body();
+            if (response.statusCode() != 200) return null;
+            return CustomJsonConverter.fromJson(response.body());
         } catch (Exception e) {
             e.printStackTrace();
         }
-        return "1";
+        return null;
     }
 
+    public List<Fact> getAllFacts() {
+        try {
+            URI uri = new URI(BASE_URL);
+            HttpRequest httpRequest = HttpRequest.newBuilder(uri)
+                    .timeout(Duration.ofSeconds(10))
+                    .headers("Content-Type", "application/json")
+                    .GET()
+                    .build();
+            HttpClient client = HttpClient.newHttpClient();
+            HttpResponse<String> response = client.send(httpRequest, HttpResponse.BodyHandlers.ofString());
+            if (response.statusCode() != 200) return null;
+            return CustomJsonConverter.listFromJson(response.body());
+        } catch (Exception e) {
+            e.printStackTrace();
+        }
+        return null;
+    }
 
+    public List<Fact> getByAuthor(String author) {
+        try {
+            URI uri = new URI(BASE_URL + "/author=" + author);
+            HttpRequest httpRequest = HttpRequest.newBuilder(uri)
+                    .timeout(Duration.ofSeconds(10))
+                    .headers("Content-Type", "application/json")
+                    .GET()
+                    .build();
+            HttpClient client = HttpClient.newHttpClient();
+            HttpResponse<String> response = client.send(httpRequest, HttpResponse.BodyHandlers.ofString());
+            if (response.statusCode() != 200) return null;
+            return CustomJsonConverter.listFromJson(response.body());
+        } catch (Exception e) {
+            e.printStackTrace();
+        }
+        return null;
+    }
 
+    public String deleteFact(int id) {
+        try {
+            URI uri = new URI(BASE_URL + "/id=" + id);
+            HttpRequest httpRequest = HttpRequest.newBuilder(uri)
+                    .timeout(Duration.ofSeconds(5))
+                    .headers("Content-Type", "application/json")
+                    .DELETE()
+                    .build();
+            HttpClient client = HttpClient.newHttpClient();
+            HttpResponse<String> response = client.send(httpRequest, HttpResponse.BodyHandlers.ofString());
+            if (response.statusCode() != 200) return "Не удалось удалить факт с таким номером";
+        } catch (Exception e) {
+            e.printStackTrace();
+        }
+        return "Факт удален";
+    }
+
+    public String updateFact(int id, Fact fact) {
+        try {
+            URI uri = new URI(BASE_URL + "/id=" + id);
+            HttpRequest httpRequest = HttpRequest.newBuilder(uri)
+                    .timeout(Duration.ofSeconds(5))
+                    .headers("Content-Type", "application/json")
+                    .PUT(HttpRequest.BodyPublishers.ofString(CustomJsonConverter.getJson(fact), StandardCharsets.UTF_8))
+                    .build();
+            HttpClient client = HttpClient.newHttpClient();
+            HttpResponse<String> response = client.send(httpRequest, HttpResponse.BodyHandlers.ofString());
+            if (response.statusCode() != 200) return "Не удалось изменить факт c таким номером";
+        } catch (Exception e) {
+            e.printStackTrace();
+        }
+        return "Факт изменен!";
+    }
 
     private static class CustomJsonConverter {
-        private static String getJson (String content, String author) throws UnsupportedEncodingException {
+        private static String getJson(Fact fact) {
             StringBuilder jBuilder = new StringBuilder();
             char c = '"';
             jBuilder.append("{");
-            jBuilder.append(c + "content" + c + ":" + c + content + c);
+            jBuilder.append(c + "content" + c + ":" + c + fact.getContent() + c);
             jBuilder.append(",");
-            jBuilder.append(c + "author" + c + ":" + "{" + c + "name" + c + ":"  + c + author + c + "}");
+            jBuilder.append(c + "author" + c + ":" + "{" + c + "name" + c + ":" + c + fact.getAuthor() + c + "}");
             jBuilder.append(",");
             jBuilder.append(c + "id" + c + ":" + c + "0" + c);
             jBuilder.append("}");
             jBuilder.trimToSize();
-
-
             return jBuilder.toString();
+        }
+
+        private static Fact fromJson(String json) {
+            json = json.replaceAll("}]", "}");
+            json = json.replaceAll("\\[", "");
+            String content = json.substring(12, json.indexOf("\",\""));
+            json = json.substring(json.indexOf("\",\"") + 2);
+            String author = json.substring(json.indexOf("name") + 7, json.indexOf("\"},\""));
+            json = json.substring(json.indexOf("\"},\"") + 3);
+            int idStartIndex = json.indexOf("id") + 4;
+            int idEndIndex = idStartIndex;
+            while (Character.isDigit(json.charAt(idEndIndex))) idEndIndex++;
+            int id = Integer.parseInt(json.substring(idStartIndex, idEndIndex));
+            return new Fact(content, author, id);
+        }
+
+        private static List<Fact> listFromJson(String json) {
+            List<Fact> facts = new ArrayList<>();
+            while (!json.isEmpty()) {
+                String fact;
+                if (json.contains("},{")) {
+                    fact = json.substring(0, (json.indexOf("},{") + 2));
+                    json = json.substring((json.indexOf("},{") + 2));
+                } else {
+                    fact = json;
+                    json = "";
+                }
+                facts.add(fromJson(fact));
+            }
+            return facts;
         }
     }
 }
