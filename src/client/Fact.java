@@ -25,6 +25,6 @@ public class Fact {
 
     @Override
     public String toString() {
-        return author + ": " + content + " id:" + id;
+        return "Факт №" + id + ": " + content + ". Автор: " + author;
     }
 }

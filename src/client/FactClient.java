@@ -1,27 +1,20 @@
 package client;
 
-import java.io.*;
 import java.net.*;
 import java.net.http.HttpClient;
 import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
-import java.nio.charset.Charset;
 import java.nio.charset.StandardCharsets;
 import java.time.Duration;
 import java.util.ArrayList;
 import java.util.List;
 
 public class FactClient {
-    private final static String BASE_URL = "http://localhost:8080/facts";
-    private final String AUTHOR;
-
-    public FactClient(String author) {
-        if (author.isBlank() || author.isEmpty() || author == null) AUTHOR = "Неизвестный автор";
-        else AUTHOR = author;
-    }
+    private final static String BASE_URL = "http://94.41.20.1:8080/facts";
 
     public String postFact(Fact fact) {
-        if (fact.getContent().isEmpty() || fact.getContent() == null) return "Факт отсутствует, введите факт";
+        if (fact.getContent().isEmpty() || fact.getContent() == null || fact == null)
+            return "Факт отсутствует, введите факт";
         try {
             URI uri = new URI(BASE_URL);
             HttpRequest httpRequest = HttpRequest.newBuilder(uri)
@@ -76,6 +69,7 @@ public class FactClient {
     }
 
     public List<Fact> getByAuthor(String author) {
+        if (author.isBlank() || author.isEmpty() || author == null) return null;
         try {
             URI uri = new URI(BASE_URL + "/author=" + author);
             HttpRequest httpRequest = HttpRequest.newBuilder(uri)
@@ -111,6 +105,8 @@ public class FactClient {
     }
 
     public String updateFact(int id, Fact fact) {
+        if (fact == null || fact.getContent().isEmpty() || fact.getContent().isBlank() || fact.getContent() == null)
+            return "Факт отсутствует, введите факт";
         try {
             URI uri = new URI(BASE_URL + "/id=" + id);
             HttpRequest httpRequest = HttpRequest.newBuilder(uri)
@@ -120,6 +116,7 @@ public class FactClient {
                     .build();
             HttpClient client = HttpClient.newHttpClient();
             HttpResponse<String> response = client.send(httpRequest, HttpResponse.BodyHandlers.ofString());
+            System.out.println(response.statusCode());
             if (response.statusCode() != 200) return "Не удалось изменить факт c таким номером";
         } catch (Exception e) {
             e.printStackTrace();
